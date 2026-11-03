@@ -77,7 +77,7 @@ def scrape_movies():
                 if not final_soup:
                     continue
                 
-                # 6. केवल और केवल STRICT 720p डाउनलोड लिंक ढूँढना (1080p या 480p को छोड़कर)
+                # 6. केवल और केवल STRICT 720p डाउनलोड लिंक ढूँढना
                 final_link = ""
                 
                 # पहले .dlink क्लास के अंदर वाले डाउनलोड बटन चेक करें
@@ -89,7 +89,6 @@ def scrape_movies():
                             txt = a_tag.get_text().lower()
                             href = a_tag.get('href')
                             
-                            # यहाँ कंडीशन सख्त कर दी है: "720" होना चाहिए, और "1080" या "480" बिल्कुल नहीं होना चाहिए
                             if "720" in txt and "1080" not in txt and "480" not in txt and "contact" not in href:
                                 final_link = href
                                 break
@@ -105,7 +104,20 @@ def scrape_movies():
                             break
                 
                 if final_link:
-                    # टाइटल में भी साफ दिखने के लिए (720p) जोड़ सकते हैं या ओरिजिनल रख सकते हैं
+                    # **यहाँ HTTP को HTTPS में बदल दिया गया है**
+                    if final_link.startswith("http://"):
+                        final_link = final_link.replace("http://", "https://", 1)
+                    elif final_link.startswith("//"):
+                        final_link = "https:" + final_link
+                    elif not final_link.startswith("http"):
+                        # अगर relative link हो तो BASE_URL के साथ जोड़ें (और http हो तो https करें)
+                        if final_link.startswith('/'):
+                            final_link = BASE_URL.rstrip('/') + final_link
+                        else:
+                            final_link = BASE_URL + final_link
+                        if final_link.startswith("http://"):
+                            final_link = final_link.replace("http://", "https://", 1)
+
                     movies_data.append({
                         'title': f"{movie_title} [720p]",
                         'poster': poster_url,
