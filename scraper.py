@@ -4,18 +4,20 @@ from bs4 import BeautifulSoup
 
 # ==================== CONFIGURATION ====================
 BASE_URL = "https://filmyfly.direct/"
-TOTAL_PAGES = 1  # इसे बाद में अपनी जरूरत के हिसाब से बढ़ा या घटा सकते हैं
+TOTAL_PAGES = 1  
 OUTPUT_PLAYLIST = "playlist.m3u"
 # =======================================================
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
 }
 
 def get_soup(url):
     try:
         response = requests.get(url, headers=HEADERS, timeout=15)
+        print(f"[{response.status_code}] Fetching: {url}")
         if response.status_code == 200:
             return BeautifulSoup(response.text, 'html.parser')
     except Exception as e:
@@ -27,13 +29,22 @@ def scrape_movies():
     
     for page in range(1, TOTAL_PAGES + 1):
         page_url = f"{BASE_URL}/" if page == 1 else f"{BASE_URL}/?page={page}"
-        print(f"Scraping page: {page_url}")
+        print(f"\n--- Scraping Page {page}: {page_url} ---")
         
         soup = get_soup(page_url)
         if not soup:
+            print("[-] Failed to get soup for main page.")
             continue
             
         items = soup.find_all('div', class_='A10')
+        print(f"[+] Found {len(items)} items on page {page}")
+        
+        if len(items) == 0:
+            print("[-] Warning: No items found with class 'A10'. The website structure might have changed.")
+            # डीबगिंग के लिए कुछ दूसरे divs प्रिंट करके देखने के लिए
+            all_divs = soup.find_all('div', limit=5)
+            print("Sample divs on page:", [d.get('class') for d in all_divs])
+
         for item in items:
             try:
                 # 1. Title & Movie Link निकालना
@@ -44,7 +55,7 @@ def scrape_movies():
                 
                 movie_title = title_tag.get_text(strip=True)
                 relative_movie_link = link_tag.get('href')
-                movie_link = BASE_URL + relative_movie_link if relative_movie_link.startswith('/') else relative_movie_link
+                movie_link = BASE_URL.rstrip('/') + relative_movie_link if relative_movie_link.startswith('/') else relative_movie_link
                 
                 # 2. Poster Image URL बदलना
                 img_tag = item.find('img')
@@ -54,33 +65,38 @@ def scrape_movies():
                     if raw_poster:
                         poster_url = raw_poster.replace('60-65-2x', '280-380-3x')
                 
-                print(f"Processing movie: {movie_title}")
+                print(f"\nProcessing movie: {movie_title}")
                 
-                # 3. Movie Page को बैकग्राउंड में खोलना
+                # 3. Movie Page को खोलना
                 movie_soup = get_soup(movie_link)
                 if not movie_soup:
+                    print(f"[-] Could not open movie page: {movie_link}")
                     continue
                 
                 # 4. "Download This Movie" वाला रीडायरेक्ट लिंक ढूँढना
                 dlbtn_div = movie_soup.find('div', class_='dlbtn')
                 if not dlbtn_div:
+                    print(f"[-] 'dlbtn' div not found for {movie_title}")
                     continue
                 
                 redirect_a = dlbtn_div.find('a')
                 if not redirect_a:
+                    print(f"[-] Redirect 'a' tag not found inside dlbtn for {movie_title}")
                     continue
                     
                 redirect_link = redirect_a.get('href')
+                if redirect_link.startswith('/'):
+                    redirect_link = BASE_URL.rstrip('/') + redirect_link
                 
                 # 5. रीडायरेक्ट लिंक को खोलकर फाइनल डाउनलोड पेज तक पहुँचना
                 final_soup = get_soup(redirect_link)
                 if not final_soup:
+                    print(f"[-] Could not open final redirect link: {redirect_link}")
                     continue
                 
-                # 6. केवल और केवल STRICT 720p डाउनलोड लिंक ढूँढना
+                # 6. केवल 720p डाउनलोड लिंक ढूँढना
                 final_link = ""
                 
-                # पहले .dlink क्लास के अंदर वाले डाउनलोड बटन चेक करें
                 dlink_divs = final_soup.find_all('div', class_='dlink')
                 if dlink_divs:
                     for dlink in reversed(dlink_divs):
@@ -88,29 +104,31 @@ def scrape_movies():
                         if a_tag and a_tag.get('href'):
                             txt = a_tag.get_text().lower()
                             href = a_tag.get('href')
+                            print(f"  -> Found dlink text: '{txt.strip()}' | href: {href}")
                             
+                            # Strict 720p check
                             if "720" in txt and "1080" not in txt and "480" not in txt and "contact" not in href:
                                 final_link = href
                                 break
                 
-                # अगर .dlink से न मिले, तो सभी लिंक्स में से सिर्फ 720p वाला ही ढूंढें
+                # अगर .dlink से न मिले, तो सभी लिंक्स चेक करें
                 if not final_link:
                     all_links = final_soup.find_all('a')
                     for a in reversed(all_links):
                         href = a.get('href')
                         txt = a.get_text().lower()
                         if href and "720" in txt and "1080" not in txt and "480" not in txt and 'contact' not in href and 'index' not in href:
+                            print(f"  -> Fallback matched text: '{txt.strip()}' | href: {href}")
                             final_link = href
                             break
                 
                 if final_link:
-                    # **यहाँ HTTP को HTTPS में बदल दिया गया है**
+                    # HTTP to HTTPS Conversion
                     if final_link.startswith("http://"):
                         final_link = final_link.replace("http://", "https://", 1)
                     elif final_link.startswith("//"):
                         final_link = "https:" + final_link
                     elif not final_link.startswith("http"):
-                        # अगर relative link हो तो BASE_URL के साथ जोड़ें (और http हो तो https करें)
                         if final_link.startswith('/'):
                             final_link = BASE_URL.rstrip('/') + final_link
                         else:
@@ -123,27 +141,28 @@ def scrape_movies():
                         'poster': poster_url,
                         'download_link': final_link
                     })
-                    print(f"Added strict 720p link for: {movie_title}")
+                    print(f"[✔] Successfully added: {movie_title} [720p]")
                 else:
-                    print(f"Skipped {movie_title}: 720p link not found.")
+                    print(f"[✖] Skipped {movie_title}: Strict 720p link could not be isolated.")
                     
             except Exception as e:
-                print(f"Error parsing item: {e}")
+                print(f"[!] Error parsing item: {e}")
                 continue
                 
     return movies_data
 
 def update_playlist(movies):
+    if not movies:
+        print("\n[!] Playlist NOT updated because 0 movies were collected.")
+        return
+
     with open(OUTPUT_PLAYLIST, 'w', encoding='utf-8') as f:
         f.write("#EXTM3U\n")
         for m in movies:
             f.write(f'#EXTINF:-1 tvg-logo="{m["poster"]}" ,{m["title"]}\n')
             f.write(f'{m["download_link"]}\n')
-    print(f"Playlist updated successfully with {len(movies)} items!")
+    print(f"\n[✔] Playlist successfully updated with {len(movies)} items in '{OUTPUT_PLAYLIST}'!")
 
 if __name__ == "__main__":
     movies = scrape_movies()
-    if movies:
-        update_playlist(movies)
-    else:
-        print("No movies found.")
+    update_playlist(movies)
