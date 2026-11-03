@@ -77,10 +77,10 @@ def scrape_movies():
                 if not final_soup:
                     continue
                 
-                # 6. सही 720p / HD डाउनलोड लिंक ढूँढना (फालतू/फुटर लिंक्स को छोड़कर)
+                # 6. केवल और केवल STRICT 720p डाउनलोड लिंक ढूँढना (1080p या 480p को छोड़कर)
                 final_link = ""
                 
-                # पहले .dlink क्लास के अंदर वाले डाउनलोड बटन चेक करें (जो सबसे सटीक होते हैं)
+                # पहले .dlink क्लास के अंदर वाले डाउनलोड बटन चेक करें
                 dlink_divs = final_soup.find_all('div', class_='dlink')
                 if dlink_divs:
                     for dlink in reversed(dlink_divs):
@@ -88,28 +88,32 @@ def scrape_movies():
                         if a_tag and a_tag.get('href'):
                             txt = a_tag.get_text().lower()
                             href = a_tag.get('href')
-                            # 720p या सबसे हाई क्वालिटी वाला बटन चुनें और contact.html से बचें
-                            if ("720" in txt or "hd" in txt or "cloud" in href) and "contact" not in href:
+                            
+                            # यहाँ कंडीशन सख्त कर दी है: "720" होना चाहिए, और "1080" या "480" बिल्कुल नहीं होना चाहिए
+                            if "720" in txt and "1080" not in txt and "480" not in txt and "contact" not in href:
                                 final_link = href
                                 break
                 
-                # अगर ऊपर से न मिले, तो पेज के सभी लिंक्स में से आखिरी सही डाउनलोड लिंक ढूंढें
+                # अगर .dlink से न मिले, तो सभी लिंक्स में से सिर्फ 720p वाला ही ढूंढें
                 if not final_link:
                     all_links = final_soup.find_all('a')
                     for a in reversed(all_links):
                         href = a.get('href')
                         txt = a.get_text().lower()
-                        if href and ('720' in txt or 'hd' in txt or 'filesdl' in href or 'drive' in href) and 'contact' not in href and 'index' not in href:
+                        if href and "720" in txt and "1080" not in txt and "480" not in txt and 'contact' not in href and 'index' not in href:
                             final_link = href
                             break
                 
                 if final_link:
+                    # टाइटल में भी साफ दिखने के लिए (720p) जोड़ सकते हैं या ओरिजिनल रख सकते हैं
                     movies_data.append({
-                        'title': movie_title,
+                        'title': f"{movie_title} [720p]",
                         'poster': poster_url,
                         'download_link': final_link
                     })
-                    print(f"Added best HD link for: {movie_title}")
+                    print(f"Added strict 720p link for: {movie_title}")
+                else:
+                    print(f"Skipped {movie_title}: 720p link not found.")
                     
             except Exception as e:
                 print(f"Error parsing item: {e}")
