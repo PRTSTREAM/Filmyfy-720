@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 # ==================== CONFIGURATION ====================
 BASE_URL = "https://filmyfly.direct/"
-TOTAL_PAGES = 2  
+TOTAL_PAGES = 10  
 OUTPUT_PLAYLIST = "playlist.m3u"
 # =======================================================
 
