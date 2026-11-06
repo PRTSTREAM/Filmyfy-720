@@ -2,8 +2,11 @@ name: Update FilmyFly 720p Playlist
 
 on:
   schedule:
-    - cron: '0 */12 * * *' # हर 12 घंटे में ऑटोमैटिक रन होगा
-  workflow_dispatch: # मैन्युअली भी रन करने का बटन मिलेगा
+    - cron: '0 */2 * * *' # Har 2 ghante me chalega
+  workflow_dispatch:
+
+permissions:
+  contents: write # Token ko file write aur commit push karne ki permission dega
 
 jobs:
   build:
