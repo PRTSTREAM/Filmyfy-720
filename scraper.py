@@ -3,7 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 
 # ==================== CONFIGURATION ====================
-BASE_URL = "https://filmyfly.direct/"
+BASE_URL = "https://filmyfly.gift/"
 TOTAL_PAGES = 10  
 OUTPUT_PLAYLIST = "playlist.m3u"
 # =======================================================
